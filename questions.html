@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Past Questions</title>
+<link rel="stylesheet" href="style.css">
+<style>
+.qcard{background:#fff;margin:0 24px 24px;padding:14px;border-radius:20px;box-shadow:0 6px 16px rgba(79,70,229,.2)}
+.qcard h3{font-size:16px;margin-bottom:10px}
+.qcard img{width:100%;border-radius:12px;border:1px solid #eee;display:block}
+.dl{width:100%;padding:14px;margin-top:12px;border:0;border-radius:12px;background:var(--accent);color:#fff;font-size:17px;font-weight:bold}
+.dl:active{transform:scale(.97)}
+.spacer{height:16px}
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title">Past Questions</h1>
+  <p id="sub">Tap download to save to your phone</p>
+</header>
+
+<div class="nav">
+  <a href="javascript:history.back()">← Back</a>
+  <a href="index.html">🏠 Home</a>
+</div>
+<div class="spacer"></div>
+
+<div id="list"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="auth.js"></script>
+<script>
+const courseId = new URLSearchParams(location.search).get("course");
+let courseCode = "past-question";
+
+async function load(){
+  const list = document.getElementById("list");
+
+  const c = await sb.from("courses").select("code,title").eq("id", courseId).single();
+  if (c.data) {
+    courseCode = c.data.code;
+    document.getElementById("title").textContent = c.data.code;
+    document.getElementById("sub").textContent = c.data.title || "Tap download to save to your phone";
+  }
+
+  const { data, error } = await sb.from("questions")
+    .select("*").eq("course_id", courseId).order("created_at", { ascending: false });
+
+  if (error) { list.innerHTML = '<p class="empty">Could not load questions.</p>'; return; }
+  if (!data.length) { list.innerHTML = '<p class="empty">No past questions uploaded yet.</p>'; return; }
+
+  data.forEach((q, i) => {
+    const card = document.createElement("div");
+    card.className = "qcard";
+
+    const h = document.createElement("h3");
+    h.textContent = q.label || "Past question";
+
+    const img = document.createElement("img");
+    img.src = q.image_url;
+    img.loading = "lazy";
+    img.alt = q.label || "Past question";
+
+    const btn = document.createElement("button");
+    btn.className = "dl";
+    btn.textContent = "⬇ Download to phone";
+    btn.onclick = () => download(q, i, btn);
+
+    card.append(h, img, btn);
+    list.appendChild(card);
+  });
+}
+
+function download(q, i, btn){
+  const old = btn.textContent;
+  const ext = (q.image_url.split(".").pop().split("?")[0] || "jpg").toLowerCase();
+  const name = (courseCode + "-" + (q.label || "question") + "-" + (i + 1)).replace(/[^a-z0-9]+/gi, "_") + "." + ext;
+
+  const a = document.createElement("a");
+  a.href = q.image_url + "?download=" + encodeURIComponent(name);
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+
+  btn.textContent = "✔ Download started";
+  setTimeout(() => { btn.textContent = old; }, 2500);
+}
+
+load();
+</script>
+</body>
+</html>

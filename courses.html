@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Courses</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <h1 id="title">Courses</h1>
+  <p>Tap a course to see its past questions</p>
+</header>
+
+<div class="nav">
+  <a href="javascript:history.back()">← Back</a>
+  <a href="index.html">🏠 Home</a>
+</div>
+
+<div class="grid" id="list"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="auth.js"></script>
+<script>
+const level = new URLSearchParams(location.search).get("level");
+document.getElementById("title").textContent = level + " Level Courses";
+
+async function loadCourses(){
+  const list = document.getElementById("list");
+  const { data, error } = await sb.from("courses")
+    .select("*").eq("level", level).order("code");
+
+  if (error) { list.innerHTML = '<p class="empty">Could not load courses.</p>'; return; }
+  if (!data.length) { list.innerHTML = '<p class="empty">No courses added yet.</p>'; return; }
+
+  data.forEach(c => {
+    const a = document.createElement("a");
+    a.className = "btn";
+    a.href = "questions.html?course=" + c.id;
+    a.textContent = c.code;
+    const s = document.createElement("span");
+    s.className = "sub";
+    s.textContent = c.title || "";
+    a.appendChild(s);
+    list.appendChild(a);
+  });
+}
+loadCourses();
+</script>
+</body>
+</html>

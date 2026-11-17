@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Past Questions</title>
+<link rel="stylesheet" href="style.css">
+<style>
+.logout{position:absolute;top:14px;right:14px;background:rgba(255,255,255,.2);color:#fff;border:0;padding:8px 14px;border-radius:20px;font-size:14px}
+header{position:relative}
+</style>
+</head>
+<body>
+<header>
+  <button class="logout" onclick="logout()">Log out</button>
+  <h1>📚 Past Questions</h1>
+  <p>Choose your level</p>
+</header>
+
+<div class="grid">
+  <a class="btn" href="courses.html?level=100">100 Level</a>
+  <a class="btn" href="courses.html?level=200">200 Level</a>
+  <a class="btn" href="courses.html?level=300">300 Level</a>
+  <a class="btn" href="courses.html?level=400">400 Level</a>
+  <a class="btn" id="adminBtn" href="admin.html" style="display:none;background:#f59e0b;color:#fff">🛠 Admin Panel</a>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="auth.js"></script>
+<script>
+(async () => {
+  const { data } = await sb.auth.getSession();
+  const email = data.session && data.session.user.email;
+  if (email === "stephjunr@gmail.com") {
+    document.getElementById("adminBtn").style.display = "block";
+  }
+})();
+</script>
+</body>
+</html>

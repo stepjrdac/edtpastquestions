@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Admin</title>
+<link rel="stylesheet" href="style.css">
+<style>
+.card{background:#fff;margin:20px 24px;padding:20px;border-radius:20px;box-shadow:0 6px 16px rgba(79,70,229,.2)}
+.card h2{margin-bottom:10px;font-size:18px}
+input,select{width:100%;padding:14px;margin:8px 0;border:2px solid #ddd;border-radius:12px;font-size:16px;background:#fff}
+button{width:100%;padding:14px;margin-top:10px;border:0;border-radius:12px;background:var(--main);color:#fff;font-size:17px;font-weight:bold}
+button.danger{background:#dc2626}
+button.small{padding:10px;font-size:15px;margin-top:8px}
+.ok{color:#16a34a;text-align:center;margin-top:10px}
+.err{color:#dc2626;text-align:center;margin-top:10px}
+.item{display:flex;gap:12px;align-items:center;border:1px solid #eee;border-radius:14px;padding:10px;margin-top:12px}
+.item img{width:70px;height:70px;object-fit:cover;border-radius:10px}
+.item .info{flex:1;font-size:14px}
+.item button{width:auto;margin:0;padding:10px 14px;font-size:14px}
+</style>
+</head>
+<body>
+<header><h1>🛠 Admin Panel</h1><p>Add, upload and manage past questions</p></header>
+<div class="nav"><a href="index.html">🏠 Home</a><a href="javascript:logout()">Log out</a></div>
+
+<div class="card">
+  <h2>1. Add a course</h2>
+  <select id="cLevel">
+    <option value="100">100 Level</option>
+    <option value="200">200 Level</option>
+    <option value="300">300 Level</option>
+    <option value="400">400 Level</option>
+  </select>
+  <input id="cCode" placeholder="Course code e.g. EDT301">
+  <input id="cTitle" placeholder="Course title">
+  <button onclick="doAddCourse()">Add Course</button>
+  <p id="m1"></p>
+</div>
+
+<div class="card">
+  <h2>2. Upload past questions</h2>
+  <select id="courseSel"></select>
+  <input id="qLabel" placeholder="Label e.g. 2022/2023 First Semester">
+  <input id="qFiles" type="file" accept="image/*" multiple>
+  <button onclick="doUpload()">Upload</button>
+  <p id="m2"></p>
+</div>
+
+<div class="card">
+  <h2>3. Manage (delete)</h2>
+  <select id="manageSel" onchange="loadImages()"></select>
+  <button class="danger" onclick="deleteCourse()">🗑 Delete this course</button>
+  <p id="m3"></p>
+  <div id="images"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="auth.js"></script>
+<script>
+window.onerror = function(msg, src, line){ alert("Error: " + msg + " (line " + line + ")"); };
+
+const ADMIN_EMAIL = "stephjunr@gmail.com";
+const BUCKET = "past-questions";
+const $ = id => document.getElementById(id);
+const say = (id, text, ok) => { $(id).textContent = text; $(id).className = ok ? "ok" : "err"; };
+
+(async () => {
+  const { data } = await sb.auth.getSession();
+  const email = data.session && data.session.user.email;
+  if (email !== ADMIN_EMAIL) { location.href = "index.html"; return; }
+  loadCourses();
+})();
+
+function pathFromUrl(url){
+  const part = url.split("/" + BUCKET + "/")[1] || "";
+  return decodeURIComponent(part.split("?")[0]);
+}
+
+async function loadCourses(){
+  const { data, error } = await sb.from("courses").select("*").order("level").order("code");
+  if (error) { say("m2", error.message, false); return; }
+  const keepUpload = $("courseSel").value;
+  const keepManage = $("manageSel").value;
+  $("courseSel").innerHTML = "";
+  $("manageSel").innerHTML = "";
+  (data || []).forEach(c => {
+    const text = c.level + "L - " + c.code;
+    [$("courseSel"), $("manageSel")].forEach(sel => {
+      const o = document.createElement("option");
+      o.value = c.id;
+      o.textContent = text;
+      sel.appendChild(o);
+    });
+  });
+  if (keepUpload) $("courseSel").value = keepUpload;
+  if (keepManage) $("manageSel").value = keepManage;
+  loadImages();
+}
+
+async function doAddCourse(){
+  try {
+    const code = $("cCode").value.trim().toUpperCase();
+    if (!code) return say("m1", "Enter a course code", false);
+    const { error } = await sb.from("courses").insert({
+      level: Number($("cLevel").value), code, title: $("cTitle").value.trim()
+    });
+    if (error) return say("m1", error.message, false);
+    say("m1", code + " added", true);
+    $("cCode").value = ""; $("cTitle").value = "";
+    loadCourses();
+  } catch (e) { alert("Add course failed: " + e.message); }
+}
+
+async function doUpload(){
+  try {
+    say("m2", "Starting...", true);
+    const files = $("qFiles").files;
+    const courseId = $("courseSel").value;
+    if (!courseId) return say("m2", "Add a course first", false);
+    if (!files.length) return say("m2", "Choose at least one image", false);
+
+    for (let i = 0; i < files.length; i++) {
+      say("m2", "Uploading " + (i + 1) + " of " + files.length + "...", true);
+      const f = files[i];
+      const ext = (f.name.split(".").pop() || "jpg").toLowerCase();
+      const path = courseId + "/" + Date.now() + "-" + i + "." + ext;
+
+      const up = await sb.storage.from(BUCKET).upload(path, f, { contentType: f.type || "image/jpeg" });
+      if (up.error) return say("m2", "Storage: " + up.error.message, false);
+
+      const url = sb.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
+      let label = $("qLabel").value.trim() || "Past question";
+      if (files.length > 1) label += " (page " + (i + 1) + ")";
+
+      const ins = await sb.from("questions").insert({ course_id: courseId, label, image_url: url });
+      if (ins.error) return say("m2", "Database: " + ins.error.message, false);
+    }
+    say("m2", "Upload complete!", true);
+    $("qFiles").value = "";
+    loadImages();
+  } catch (e) { alert("Upload failed: " + e.message); }
+}
+
+async function loadImages(){
+  const box = $("images");
+  box.innerHTML = "";
+  const courseId = $("manageSel").value;
+  if (!courseId) return;
+  const { data, error } = await sb.from("questions").select("*")
+    .eq("course_id", courseId).order("created_at", { ascending: false });
+  if (error) return say("m3", error.message, false);
+  if (!data.length) { box.innerHTML = '<p class="empty">No images in this course.</p>'; return; }
+
+  data.forEach(q => {
+    const row = document.createElement("div");
+    row.className = "item";
+
+    const img = document.createElement("img");
+    img.src = q.image_url;
+
+    const info = document.createElement("div");
+    info.className = "info";
+    info.textContent = q.label || "Past question";
+
+    const del = document.createElement("button");
+    del.className = "danger";
+    del.textContent = "Delete";
+    del.onclick = () => deleteImage(q);
+
+    row.append(img, info, del);
+    box.appendChild(row);
+  });
+}
+
+async function deleteImage(q){
+  if (!confirm("Delete this image? This cannot be undone.")) return;
+  try {
+    const path = pathFromUrl(q.image_url);
+    const rm = await sb.storage.from(BUCKET).remove([path]);
+    if (rm.error) return say("m3", "Storage: " + rm.error.message, false);
+    if (!rm.data || !rm.data.length) return say("m3", "Image file was not deleted. Check the storage delete policy.", false);
+
+    const del = await sb.from("questions").delete().eq("id", q.id);
+    if (del.error) return say("m3", "Database: " + del.error.message, false);
+
+    say("m3", "Image deleted", true);
+    loadImages();
+  } catch (e) { alert("Delete failed: " + e.message); }
+}
+
+async function deleteCourse(){
+  const courseId = $("manageSel").value;
+  if (!courseId) return say("m3", "No course selected", false);
+  const label = $("manageSel").options[$("manageSel").selectedIndex].textContent;
+  if (!confirm("Delete " + label + " and ALL its images? This cannot be undone.")) return;
+
+  try {
+    const { data, error } = await sb.from("questions").select("image_url").eq("course_id", courseId);
+    if (error) return say("m3", error.message, false);
+
+    const paths = (data || []).map(q => pathFromUrl(q.image_url)).filter(Boolean);
+    if (paths.length) {
+      const rm = await sb.storage.from(BUCKET).remove(paths);
+      if (rm.error) return say("m3", "Storage: " + rm.error.message, false);
+      if (!rm.data || rm.data.length < paths.length) return say("m3", "Some image files were not deleted. Check the storage delete policy.", false);
+    }
+
+    const del = await sb.from("courses").delete().eq("id", courseId);
+    if (del.error) return say("m3", "Database: " + del.error.message, false);
+
+    say("m3", label + " deleted", true);
+    loadCourses();
+  } catch (e) { alert("Delete failed: " + e.message); }
+}
+</script>
+</body>
+</html>

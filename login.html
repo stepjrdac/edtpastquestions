@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#4f46e5">
 <title>Login</title>
 <link rel="stylesheet" href="style.css">
 <style>
@@ -11,7 +12,9 @@ input{width:100%;padding:14px;margin:8px 0;border:2px solid #ddd;border-radius:1
 button{width:100%;padding:14px;margin-top:10px;border:0;border-radius:12px;background:var(--main);color:#fff;font-size:17px;font-weight:bold}
 button.alt{background:var(--accent)}
 #msg{margin-top:12px;text-align:center;color:#dc2626}
+header{padding-top:50px}
 </style>
+<link rel="manifest" href="manifest.json">
 </head>
 <body>
 <header><h1>🎓 Welcome</h1><p>Sign up or log in</p></header>
@@ -40,5 +43,6 @@ async function login(){
   else location.href = "index.html";
 }
 </script>
+<script src="install.js"></script>
 </body>
 </html>
